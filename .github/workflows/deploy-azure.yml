@@ -1,12 +1,12 @@
-# Deploy automático para um Azure Web App próprio.
+# Esteira de build, teste e deploy no Azure Web App.
 #
-# Este workflow é genérico de propósito: cada aluno que faz fork deste
-# repositório configura seus próprios secrets (AZURE_WEBAPP_NAME e
-# AZURE_WEBAPP_PUBLISH_PROFILE) e passa a ter deploy automático a cada push
-# na própria main. Veja o passo a passo completo em DEPLOY_AZURE.md.
+#   build   -> instala dependências, compila e roda o lint (ruff)
+#   testes  -> unitários + contrato + run-level (sem API real)
+#   deploy  -> só roda se build e testes passarem; publica no Azure Web App
 #
-# Sem os secrets configurados (ex.: no repositório-template original), o job
-# roda, avisa que faltam secrets e PULA o deploy — não falha a run.
+# Os secrets AZURE_WEBAPP_NAME e AZURE_WEBAPP_PUBLISH_PROFILE ficam no
+# repositório (Settings > Secrets and variables > Actions). Sem eles o deploy
+# é pulado com aviso. Passo a passo em DEPLOY_AZURE.md.
 
 name: Deploy Azure
 
@@ -16,10 +16,42 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
-    # Com DEPLOY_ESTRATEGIA=canary quem publica é o deploy-canary.yml.
+  build:
     if: vars.DEPLOY_ESTRATEGIA != 'canary'
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar dependências
+        run: pip install -r requirements.txt -r requirements-dev.txt ruff
+      - name: Compilar
+        run: python -m py_compile agent.py app.py
+      - name: Lint
+        run: ruff check agent.py app.py
+
+  testes:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - name: Instalar dependências
+        run: pip install -r requirements.txt -r requirements-dev.txt
+      - name: Testes unitários, de contrato e run-level
+        run: pytest -m "unitario or contrato or run_level" -v
+
+  deploy:
+    needs: testes
+    runs-on: ubuntu-latest
+    environment:
+      name: producao
+      url: ${{ steps.publicar.outputs.webapp-url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -27,13 +59,14 @@ jobs:
         id: secrets
         run: |
           if [ -z "${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}" ] || [ -z "${{ secrets.AZURE_WEBAPP_NAME }}" ]; then
-            echo "::warning::Secrets AZURE_WEBAPP_NAME / AZURE_WEBAPP_PUBLISH_PROFILE não configurados. Deploy pulado — veja DEPLOY_AZURE.md para configurar seu próprio Azure Web App."
+            echo "::warning::Secrets AZURE_WEBAPP_NAME / AZURE_WEBAPP_PUBLISH_PROFILE não configurados. Deploy pulado."
             echo "pronto=false" >> "$GITHUB_OUTPUT"
           else
             echo "pronto=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Deploy no Azure Web App
+        id: publicar
         if: steps.secrets.outputs.pronto == 'true'
         uses: azure/webapps-deploy@v3
         with:
