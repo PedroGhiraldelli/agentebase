@@ -50,10 +50,13 @@ def get_cliente() -> OpenAI:
     """
     global _cliente
     if _cliente is None:
-        chave = os.getenv("OPENAI_API_KEY")
+        # OPENAI_API_KEY tem prioridade; GEMINI_API_KEY permite usar o Gemini
+        # pelo endpoint compatível (OPENAI_BASE_URL) sem renomear a chave.
+        chave = os.getenv("OPENAI_API_KEY") or os.getenv("GEMINI_API_KEY")
         if not chave:
             raise RuntimeError(
-                "OPENAI_API_KEY não encontrada. Copie .env.example para .env e coloque sua chave."
+                "OPENAI_API_KEY (ou GEMINI_API_KEY) não encontrada. "
+                "Copie .env.example para .env e coloque sua chave."
             )
         _cliente = OpenAI(api_key=chave)
     return _cliente
