@@ -151,6 +151,10 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          # Provedor configurável: com Gemini, defina as variables do repositório
+          # OPENAI_BASE_URL e OPENAI_MODEL (Settings > Secrets and variables > Actions).
+          OPENAI_BASE_URL: ${{ vars.OPENAI_BASE_URL || 'https://api.openai.com/v1' }}
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL || 'gpt-4o-mini' }}
         run: |
-          echo "Rodando eval de persona (marker: eval)..."
+          echo "Rodando evals (personas + agente publicado, marker: eval)..."
           pytest -m eval -vv -s
