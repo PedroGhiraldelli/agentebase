@@ -20,9 +20,18 @@ import agent
 class TestConfiguracaoPorAmbiente:
     def test_sem_chave_falha_com_mensagem_clara(self, monkeypatch):
         monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.delenv("GEMINI_API_KEY", raising=False)
         monkeypatch.setattr(agent, "_cliente", None)
         with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
             agent.get_cliente()
+
+    def test_aceita_gemini_api_key_quando_nao_ha_openai_api_key(self, monkeypatch):
+        # No Azure a chave do Gemini pode estar cadastrada como GEMINI_API_KEY.
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        monkeypatch.setenv("GEMINI_API_KEY", "chave-gemini-de-teste")
+        monkeypatch.setattr(agent, "_cliente", None)
+        assert agent.get_cliente().api_key == "chave-gemini-de-teste"
+        monkeypatch.setattr(agent, "_cliente", None)
 
     def test_cliente_respeita_base_url_do_provedor(self, monkeypatch):
         # No Azure o app aponta para o endpoint compatível do Gemini só por variável.
