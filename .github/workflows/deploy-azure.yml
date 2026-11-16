@@ -15,6 +15,12 @@ on:
     branches: [ main ]
   workflow_dispatch:
 
+# Pushes seguidos não disputam o mesmo Web App (evita o 409 Conflict do Azure):
+# o deploy mais recente cancela o que ainda estiver rodando.
+concurrency:
+  group: deploy-azure-producao
+  cancel-in-progress: true
+
 jobs:
   build:
     if: vars.DEPLOY_ESTRATEGIA != 'canary'
